@@ -1,0 +1,4 @@
+cloudantsnap
+*.jsonl
+*.json
+run.sh
