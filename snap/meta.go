@@ -2,7 +2,6 @@ package snap
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"regexp"
 	"time"
@@ -58,7 +57,6 @@ func (md *MetaData) LoadPreviousFile(filename string) {
 	if err != nil {
 		return
 	}
-	fmt.Println(data)
 	md.Since = data["since"].(string)
 }
 
