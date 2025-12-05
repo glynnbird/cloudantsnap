@@ -8,7 +8,8 @@ import (
 )
 
 // MetaData records a cloudantsnap run's start and end time,
-// the database name and the last sequence token
+// the database name and the last sequence token. This data is
+// converted to JSON and stored in the application's "meta" file.
 type MetaData struct {
 	Since        string    `json:"since"`
 	StartTime    time.Time `json:"startTime"`
@@ -60,6 +61,8 @@ func (md *MetaData) LoadPreviousFile(filename string) {
 	md.Since = data["since"].(string)
 }
 
+// GetTruncatedSince converts the stored Since value to a shortened
+// form, suitable for sending to the output
 func (md *MetaData) GetTruncatedSince() string {
 	if md.Since == "0" {
 		return md.Since

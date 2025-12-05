@@ -11,9 +11,16 @@ import (
 	"github.com/IBM/cloudant-go-sdk/features"
 )
 
+// CloudantSnap stores everything we need to proceed with a cloudantsnap
+// execution.
 type CloudantSnap struct {
-	appConfig *AppConfig             // our command-line options
-	service   *cloudantv1.CloudantV1 // the Cloudant SDK client
+	appConfig         *AppConfig             // our command-line options
+	service           *cloudantv1.CloudantV1 // the Cloudant SDK client
+	meta              *MetaData              // the meta data we need for the cluodantsnap run
+	sanitisedFilename string                 // a sanitised form of the database name, safe for creating filenames
+	metaFilename      string                 // the filename used to store the cloudantsnap run's meta data
+	filename          string                 // the final filename containing the cloudantsnap output
+	tmpFilename       string                 // the temporary filename used to stire the cloudantsnap output, until it is renamed to "filename"
 }
 
 // New creates a new CloudantSnap struct, loading the CLI parameters
@@ -32,9 +39,24 @@ func New() (*CloudantSnap, error) {
 	}
 	service.EnableRetries(3, 5*time.Second)
 
+	// create a meta instance
+	meta := NewMetaData(appConfig.DatabaseName)
+
+	// create sanitised filename
+	sanitisedFilename := sanitiseDatabaseName(appConfig.DatabaseName)
+
+	// create filenames
+	filename := generateFilename(sanitisedFilename)
+	tmpFilename := "_tmp_" + filename
+
 	cs := CloudantSnap{
-		appConfig: appConfig,
-		service:   service,
+		appConfig:         appConfig,
+		service:           service,
+		meta:              meta,
+		sanitisedFilename: sanitisedFilename,
+		metaFilename:      fmt.Sprintf("%v-meta.json", sanitisedFilename),
+		filename:          filename,
+		tmpFilename:       tmpFilename,
 	}
 
 	return &cs, nil
@@ -50,20 +72,14 @@ func (cs *CloudantSnap) Run() error {
 	// keep a note of the last sequence token
 	var since string
 
-	// start a new MetaData record and load any old meta data to get
-	// a previous value of since
-	meta := NewMetaData(cs.appConfig.DatabaseName)
-	sanitisedFilename := sanitiseDatabaseName(cs.appConfig.DatabaseName)
-	metaFilename := fmt.Sprintf("%v-meta.json", sanitisedFilename)
-	meta.LoadPreviousFile(metaFilename)
-	since = meta.Since
+	// find a since token to resume from, if it exists
+	cs.meta.LoadPreviousFile(cs.metaFilename)
+	since = cs.meta.Since
 
 	// open the output file - a temporary file at first
-	filename := generateFilename(sanitisedFilename)
-	tmpFilename := "_tmp_" + filename
-	fmt.Printf("spooling changes for %v since %v\n", cs.appConfig.DatabaseName, meta.GetTruncatedSince())
-	fmt.Println(filename)
-	f, err := os.OpenFile(tmpFilename, os.O_CREATE|os.O_WRONLY, 0644)
+	fmt.Printf("spooling changes for %v since %v\n", cs.appConfig.DatabaseName, cs.meta.GetTruncatedSince())
+	fmt.Println(cs.filename)
+	f, err := os.OpenFile(cs.tmpFilename, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -71,8 +87,8 @@ func (cs *CloudantSnap) Run() error {
 	// build up the request parameters, including "since" if we know it from a
 	// previous run
 	postChangesOptions := cs.service.NewPostChangesOptions(cs.appConfig.DatabaseName)
-	if len(meta.Since) > 0 {
-		postChangesOptions.SetSince(meta.Since)
+	if len(cs.meta.Since) > 0 {
+		postChangesOptions.SetSince(cs.meta.Since)
 	} else {
 		postChangesOptions.SetSince("0")
 	}
@@ -114,15 +130,15 @@ func (cs *CloudantSnap) Run() error {
 	}
 
 	// copy tmp file to final file
-	err = os.Rename(tmpFilename, filename)
+	err = os.Rename(cs.tmpFilename, cs.filename)
 	if err != nil {
 		return err
 	}
 
 	// mark the end of the snapshot
-	meta.RecordEnd(since)
-	meta.WriteToFile(metaFilename)
-	fmt.Println(metaFilename)
+	cs.meta.RecordEnd(since)
+	cs.meta.WriteToFile(cs.metaFilename)
+	fmt.Println(cs.metaFilename)
 
 	return nil
 }

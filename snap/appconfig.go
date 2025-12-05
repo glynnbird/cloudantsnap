@@ -3,7 +3,6 @@ package snap
 import (
 	"errors"
 	"flag"
-	"fmt"
 )
 
 // AppConfig contains the application configuration collected from command-line flags
@@ -12,13 +11,8 @@ type AppConfig struct {
 	Deletions    bool
 }
 
-func (ac AppConfig) Print() {
-	fmt.Println("APP CONFIG")
-	fmt.Println("----------")
-	fmt.Printf("DatabaseName: %v\n", ac.DatabaseName)
-	fmt.Printf("Deletions: %v\n", ac.Deletions)
-}
-
+// NewAppConfig creates a new AppConfig struct, parsing the incoming command-line options
+// using the flag module
 func NewAppConfig() (*AppConfig, error) {
 	appConfig := AppConfig{}
 
