@@ -16,11 +16,11 @@ import (
 type CloudantSnap struct {
 	appConfig         *AppConfig             // our command-line options
 	service           *cloudantv1.CloudantV1 // the Cloudant SDK client
-	meta              *MetaData              // the meta data we need for the cluodantsnap run
+	meta              *MetaData              // the meta data we need for the cloudantsnap run
 	sanitisedFilename string                 // a sanitised form of the database name, safe for creating filenames
 	metaFilename      string                 // the filename used to store the cloudantsnap run's meta data
 	filename          string                 // the final filename containing the cloudantsnap output
-	tmpFilename       string                 // the temporary filename used to stire the cloudantsnap output, until it is renamed to "filename"
+	tmpFilename       string                 // the temporary filename used to store the cloudantsnap output, until it is renamed to "filename"
 }
 
 // New creates a new CloudantSnap struct, loading the CLI parameters
@@ -68,7 +68,12 @@ func New() (*CloudantSnap, error) {
 // created, so that the next time the script is run, it starts off from
 // where it left off.
 func (cs *CloudantSnap) Run() error {
-
+	var f *os.File = nil
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+	}()
 	// keep a note of the last sequence token
 	var since string
 
@@ -79,7 +84,7 @@ func (cs *CloudantSnap) Run() error {
 	// open the output file - a temporary file at first
 	fmt.Printf("spooling changes for %v since %v\n", cs.appConfig.DatabaseName, cs.meta.GetTruncatedSince())
 	fmt.Println(cs.filename)
-	f, err := os.OpenFile(cs.tmpFilename, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(cs.tmpFilename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
@@ -115,6 +120,11 @@ func (cs *CloudantSnap) Run() error {
 		}
 
 		// output as JSON
+		// if this change represents a deleted document and
+		// we haven't opted to include deletions, ignore it
+		if item.Deleted != nil && *item.Deleted && cs.appConfig.Deletions == false {
+			continue
+		}
 		item.Doc.Rev = nil
 		outputStr, err := json.Marshal(item.Doc)
 		if err != nil {
@@ -126,10 +136,14 @@ func (cs *CloudantSnap) Run() error {
 		}
 
 		// record the last sequence
-		since = *item.Seq
+		if item.Seq != nil {
+			since = *item.Seq
+		}
 	}
 
 	// copy tmp file to final file
+	f.Close()
+	f = nil
 	err = os.Rename(cs.tmpFilename, cs.filename)
 	if err != nil {
 		return err
@@ -137,7 +151,10 @@ func (cs *CloudantSnap) Run() error {
 
 	// mark the end of the snapshot
 	cs.meta.RecordEnd(since)
-	cs.meta.WriteToFile(cs.metaFilename)
+	err = cs.meta.WriteToFile(cs.metaFilename)
+	if err != nil {
+		return err
+	}
 	fmt.Println(cs.metaFilename)
 
 	return nil

@@ -25,7 +25,6 @@ func NewAppConfig() (*AppConfig, error) {
 	// if we don't have a database name after parsing
 	if appConfig.DatabaseName == "" {
 		return nil, errors.New("missing dbname/db")
-	} else {
-		return &appConfig, nil
 	}
+	return &appConfig, nil
 }

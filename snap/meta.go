@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const sinceZero string = "0"
+
 // MetaData records a cloudantsnap run's start and end time,
 // the database name and the last sequence token. This data is
 // converted to JSON and stored in the application's "meta" file.
@@ -42,7 +44,7 @@ func (md *MetaData) Output() string {
 // WriteToFile writes the meta data to a given file as JSON
 func (md *MetaData) WriteToFile(filename string) error {
 	output := md.Output()
-	err := os.WriteFile(filename, []byte(output), 0644)
+	err := os.WriteFile(filename, []byte(output), 0600)
 	return err
 }
 
@@ -58,16 +60,20 @@ func (md *MetaData) LoadPreviousFile(filename string) {
 	if err != nil {
 		return
 	}
-	md.Since = data["since"].(string)
+	since, ok := data["since"].(string)
+	if ok {
+		md.Since = since
+	} else {
+		md.Since = sinceZero
+	}
 }
 
 // GetTruncatedSince converts the stored Since value to a shortened
 // form, suitable for sending to the output
 func (md *MetaData) GetTruncatedSince() string {
-	if md.Since == "0" {
+	if md.Since == sinceZero {
 		return md.Since
-	} else {
-		re := regexp.MustCompile("-.*$")
-		return re.ReplaceAllString(md.Since, "")
 	}
+	re := regexp.MustCompile("-.*$")
+	return re.ReplaceAllString(md.Since, "")
 }
