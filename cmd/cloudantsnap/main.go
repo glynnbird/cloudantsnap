@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/glynnbird/cloudantsnap/snap"
+	snap "github.com/glynnbird/cloudantsnap/internal/app"
 )
 
 func main() {

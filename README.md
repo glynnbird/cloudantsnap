@@ -12,7 +12,7 @@ Super-simple Cloudant snapshotting tool for creating incremental snapshots of th
 You will need to [download and install the Go compiler](https://go.dev/doc/install). Clone this repo then:
 
 ```sh
-go build
+go build ./cmd/cloudantsnap
 ```
 
 The copy the resultant binary `cloudantsnap` (or `cloudantsnap.exe` in Windows systems) into your path.
